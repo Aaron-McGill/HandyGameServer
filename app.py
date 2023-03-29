@@ -83,6 +83,7 @@ def make_move(game_id):
 @app.route('/games/<int:game_id>', methods=['DELETE'])
 def delete_game(game_id):
     db.session.query(Game).filter(Game.id == game_id).delete()
+    db.session.commit()
     return ('', 204)
 
 def generate_board_by_game_type(game_type):
