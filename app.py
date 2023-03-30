@@ -36,8 +36,8 @@ def create_game():
         type = game_type,
         board = generate_board_by_game_type(game_type),
         active = False,
-        current_player = current_player,
-        players = [current_player],
+        current_player = "1",
+        players = {"1": current_player},
     )
     db.session.add(game)
     db.session.commit()
@@ -54,7 +54,8 @@ def join_game(game_id):
     current_player = request_data['current_player']
 
     game = db.get_or_404(Game, game_id)
-    game.players = [game.current_player, current_player]
+    original_player_name = game.players["1"]
+    game.players = {"1": original_player_name, "2": current_player}
     game.active = True
 
     db.session.flush()
@@ -69,9 +70,10 @@ def make_move(game_id):
 
     game = db.get_or_404(Game, game_id)
     current_player = game.current_player
-    for player in game.players:
-        if current_player != player:
-            game.current_player = player
+    if current_player == "1":
+        game.current_player = "2"
+    else:
+        game.current_player = "1"
     
     game.board = updated_board
 
