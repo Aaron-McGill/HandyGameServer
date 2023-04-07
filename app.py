@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 import json
+from waitress import serve
 
 db = SQLAlchemy()
 
@@ -10,6 +11,9 @@ app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///project.db"
 
 db.init_app(app)
+
+player_mappings = {}
+game_ready_mappings = {}
 
 @app.route('/games')
 def get_games():
@@ -42,6 +46,12 @@ def create_game():
     db.session.add(game)
     db.session.commit()
 
+    # Add an entry to the cache to indicate the current player.
+    player_mappings[game.id] = "1"
+
+    # Add an entry to the cache to indicate the game is not ready.
+    game_ready_mappings[game.id] = "false"
+
     return jsonify(game)
 
 @app.route('/games/<int:game_id>')
@@ -61,6 +71,9 @@ def join_game(game_id):
     db.session.flush()
     db.session.commit()
 
+    # Update the cache to indicate the game is ready.
+    game_ready_mappings[game_id] = "true"
+
     return jsonify(game)
 
 @app.route('/games/<int:game_id>/makeMove', methods=['PUT'])
@@ -79,13 +92,27 @@ def make_move(game_id):
 
     db.session.flush()
     db.session.commit()
+
+    # Update the cache to indicate the current player has changed.
+    player_mappings[game.id] = game.current_player
     
     return jsonify(game)
+
+@app.route('/games/<int:game_id>/currentPlayer')
+def get_current_player(game_id):
+    return player_mappings[game_id]
+
+@app.route('/games/<int:game_id>/gameReady')
+def game_ready(game_id):
+    return game_ready_mappings[game_id]
 
 @app.route('/games/<int:game_id>', methods=['DELETE'])
 def delete_game(game_id):
     db.session.query(Game).filter(Game.id == game_id).delete()
     db.session.commit()
+    # Clear the entries from the cache
+    player_mappings.pop(game_id)
+    game_ready_mappings.pop(game_id)
     return ('', 204)
 
 def generate_board_by_game_type(game_type):
@@ -114,4 +141,4 @@ if __name__ == "__main__":
     with app.app_context():
         db.drop_all()
         db.create_all()
-    app.run(host='0.0.0.0', port=8080)
+    serve(app, port=8080, host='0.0.0.0')
